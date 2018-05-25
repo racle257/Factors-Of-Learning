@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import pandas as pd
-
+from sklearn import preprocessing
+import math
 
 ############################################
 ###############数据提取######################
@@ -9,43 +10,43 @@ base_info_columns = ['id','time_submit','time_spend','source','source_detail','I
            'rank_province','high_school','area_high_school','type_high_school','subject_advicer','rank_advicer',
            'grade_exam1','rank_exam1','grade_exam2','rank_exam2','grade_exam3','rank_exam3','amount_grade3',
             'type_grade_change','date_zhongkao','grade_zhongkao','rank_zhongkao']
-#问卷栏，从问题15到问题323
+#问卷栏，从问题15到问题323 + 邮箱题目
 whole_question_columns = list(range(15,325))
 college_data = pd.read_csv('data/sourceData/college_data.csv',header=0,dtype=str,encoding='gbk')
 college_data.columns = base_info_columns + whole_question_columns
-
+college_data = college_data[college_data['grade_zhongkao']!='0']
+college_data = college_data[college_data['grade_gaokao']!='0']
+college_data = college_data[college_data['rank_province']!='0']
+# print(college_data.info())
 
 
 ###############数据清洗#######################
-##########基本信息整理#########
+##########客观基础能力#########
 """
-    1.高中地区
-    2.高中类型
-    3.高三班主任任教科目
-    4.高三班主任任教职称
-    5.一练排名
-    6.二练排名
-    7.三练排名
-    8.高中变化趋势
-    9.复读年限
-    10.中考成绩
+    1.一练成绩
+    2.一练排名
+    3.二练成绩
+    4.二练排名
+    5.三练成绩
+    6.三练排名
+    7.中考成绩
+    8.中考排名
 """
 base_info = college_data.iloc[:,0:28].copy()
-base_info[['date_gaokao','date_zhongkao']] = base_info[['date_gaokao','date_zhongkao']].astype('int')
-BI = base_info[['id','area_high_school','type_high_school','subject_advicer','rank_advicer','rank_exam1',
-                'rank_exam2','rank_exam3','type_grade_change']].copy()
-BI['reschool'] = base_info['date_gaokao'] - base_info['date_zhongkao']
-BI['reschool'] = BI['reschool'].apply(lambda x:x-3 if x>3 else 0)
-BI['grade_zhongkao'] = base_info['grade_zhongkao']
+BI = base_info[['id','grade_exam1','rank_exam1','grade_exam2','rank_exam2','grade_exam3',
+                'rank_exam3','grade_zhongkao','rank_zhongkao']].copy()
+BI.replace('(空)',0,inplace=True)
+BI = BI.astype('int')
 train_data_college = BI.copy()
 # print(train_data_college.info())
 # print(train_data_college[:5])
 
 
-##########问卷整理部分###########
+##########问卷整理部分#################
+###########个人影响组################
 questionnaire_info = college_data.iloc[:,28:-2]
 """
-    1. 自我效能感（Self Efficacy）
+    2.1. 自我效能感（Self Efficacy）
     - 问卷位置： 15-24
     - 选项计分方式：4-3-2-1
     - 共10题
@@ -61,9 +62,8 @@ train_data_college["SE_points"] = SE.loc[:,['SE_points']]
 # print(SE.info())
 # print(train_data_college)
 
-
 """
-    2. 成就动机（Achievement Motivation）
+    2.2. 成就动机（Achievement Motivation）
     - 问卷位置： 25-54
     - 选项计分方式：4-3-2-1
     - 共30题
@@ -78,16 +78,15 @@ AM.replace("3",2,inplace=True)
 AM.replace("4",1,inplace=True)
 AM_MS = AM.loc[:,0:15].copy()
 AM_MF = AM.loc[:,15:30].copy()
-AM_MS['AM_MS_points'] = SE.apply(lambda x: x.sum(),axis=1)
-AM_MF['AM_MF_points'] = SE.apply(lambda x: x.sum(),axis=1)
+AM_MS['AM_MS_points'] = AM_MS.apply(lambda x: x.sum(),axis=1)
+AM_MF['AM_MF_points'] = AM_MF.apply(lambda x: x.sum(),axis=1)
 train_data_college['AM_MS_points'] = AM_MS.loc[:,['AM_MS_points']]
 train_data_college['AM_MF_points'] = AM_MF.loc[:,['AM_MF_points']]
 # print(AM.info())
 # print(train_data_college)
 
-
 """
-    3. 学习策略（Learning Strategy）
+    2.3. 学习策略（Learning Strategy）
     - 问卷位置： 55-99
     - 选项计分方式：4-3-2-1
     - 反向计分题号：2,6,15,18,22,26,30,36,38,40
@@ -121,7 +120,7 @@ train_data_college['LS_RM_points'] = LS_RM.loc[:,['LS_RM_points']]
 
 
 """
-    4. 考试焦虑（Examination Anxiety）
+    2.4. 考试焦虑（Examination Anxiety）
     - 问卷位置： 100-136
     - 选项计分方式：1-0
     - 反向计分题号：3,15,26,27,29,33
@@ -142,9 +141,10 @@ train_data_college['EA_points'] = EA.loc[:,['EA_points']]
 # print(EA.info())
 # print(train_data_college)
 
+####################
 
 """
-    5.家庭环境(Home Environment)
+    3.1.家庭环境(Home Environment)
     - 问卷位置：137-226
     - 选项计分方式：1-2
     - 计正分题号：11,41,61,2,22,52,72,13,33,63,4,54,55,65,16,36,46,76,7,27,57,87,18,38,88,9,29,49,79,10,20,60,70
@@ -204,7 +204,7 @@ train_data_college['HE_KZ_points'] = HE_KZ.loc[:,['HE_KZ_points']]
 
 
 """
-    6.家庭教养方式(Parenting Pattern)
+    3.2.家庭教养方式(Parenting Pattern)
     - 问卷位置：227-292
     - 问卷计分方式：1-2-3-4
     - 共66题
@@ -242,7 +242,7 @@ train_data_college['PP_GS_points'] = PP_GS.loc[:,['PP_GS_points']]
 
 
 """
-    7.家庭亲密性和适应性（Familial Intimacy and Adaptability.）
+    3.3.家庭亲密性和适应性（Familial Intimacy and Adaptability.）
     - 问卷位置： 293-323
     - 选项计分方式：1-2-3-4-5
     - 计负分题号：3,9,19,29,24,28
@@ -273,10 +273,42 @@ train_data_college['FIA_A_points'] = FIA_A.loc[:,['FIA_A_points']]
 # print(train_data_college.info())
 # print(train_data_college[:5])
 
+##################生成标签#####################
+def extract_province(s):
+    if('上海' in s):
+        return 660
+    elif('江苏' in s):
+        return 480
+    else:
+        return 750
+tmp = college_data[['id','grade_gaokao','rank_province','IP']].copy()
+tmp['top_gaokao'] = tmp['IP'].apply(extract_province)
+tmp['grade_gaokao'] = tmp['grade_gaokao'].astype('int')
+tmp['rank_province'] = tmp['rank_province'].astype('int')
+tmp = tmp[tmp['rank_province']<50000]       #取省前5万名
+tmp['grade_gaokao1'] = tmp['grade_gaokao']/tmp['top_gaokao']        #分数除以省最高分求比例
+tmp = tmp[tmp['grade_gaokao1']<1]           #所填分数大于省最高分时视为无效
+min_max_scaler = preprocessing.MinMaxScaler(feature_range=(0,1))
+tmp['rank_province1'] = min_max_scaler.fit_transform(tmp['rank_province'].values.reshape(-1,1))
+tmp['rank_province1'] = 1 - tmp['rank_province1']
+tmp = tmp.sort_values(['rank_province1'],ascending=False)
+tmp['rank_province2'] = list(range(1,tmp['rank_province1'].count()+1))
+tmp = tmp.sort_values(['grade_gaokao1'],ascending=False)
+tmp['grade_gaokao2'] = list(range(1,tmp['grade_gaokao1'].count()+1))
+tmp['distance'] = abs(tmp['grade_gaokao2'] - tmp['rank_province2'])
+tmp['distance'] = min_max_scaler.fit_transform(tmp['distance'].values.reshape(-1,1))
+tmp['distance1'] = tmp['distance'].apply(lambda x:math.exp(x))          #排名和成绩差距作为惩罚
+tmp['distance1'] = min_max_scaler.fit_transform(tmp['distance1'].values.reshape(-1,1))
+a,b = 1,0        #将归一化后的高考成绩和排名加权   加权系数 a  b
+k = 0.1        #减去排名不一致的惩罚系数 K
+tmp['sum_gaokao'] = a * tmp['grade_gaokao1']  + b * tmp['rank_province1']
+tmp['final_grade'] = tmp['sum_gaokao'] - k*tmp['distance1']
+tmp['final_grade'] = min_max_scaler.fit_transform(tmp['final_grade'].values.reshape(-1,1))
+tmp2 = tmp[['id','final_grade']].copy()
+tmp2['id'] = tmp2['id'].astype('int')
+# print(tmp[['grade_gaokao','grade_gaokao1','rank_province','rank_province1','final_grade']])
+train_data_college['id'] = train_data_college['id'].astype('int')
+train_data_college = pd.merge(train_data_college,tmp2,how = 'inner',on='id')
 
-##################标签#####################
-train_data_college['grade_gaokao']=college_data[['grade_gaokao']].copy()
-# print(train_data_college)
-
-
+# print(train_data_college.info())
 train_data_college.to_csv('data/midData/train_data_college.csv',index=None)

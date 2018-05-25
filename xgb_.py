@@ -4,10 +4,14 @@ import xgboost as xgb
 train_data = pd.read_csv('data/midData/train_data_college.csv',header=0,encoding='GBK')
 test_data = pd.read_csv('data/midData/test_data_high_school.csv',header=0,encoding='GBK')
 
-dataset1_y = train_data['grade_gaokao']
-dataset1_x = train_data.drop(['id','grade_gaokao'],axis=1)
+dataset1_y = train_data[['final_grade']]
+dataset1_x = train_data.drop(['id','final_grade'],axis=1)
 prediction = test_data[['id']]
 dataset2_x = test_data.drop(['id'],axis=1)
+
+dataset1 = xgb.DMatrix(dataset1_x,label=dataset1_y)
+dataset2 = xgb.DMatrix(dataset2_x)
+
 
 params={'booster':'gbtree',
 	    'gamma':0.1,
@@ -22,7 +26,8 @@ params={'booster':'gbtree',
 	    'seed':0,
 	    'nthread':12
 	    }
-#
+
+
 # #参数测试
 # #训练集再划分：0.9训练，0.1测试，输出模型的MSE
 # from sklearn.cross_validation import train_test_split
@@ -31,22 +36,19 @@ params={'booster':'gbtree',
 # train_model = xgb.DMatrix(x_train,label=y_train)
 # test_model = xgb.DMatrix(x_test,label=y_test)
 # watchlist = [(train_model,'train')]
-# model = xgb.train(params,train_model,num_boost_round=500,evals=watchlist)
+# model = xgb.train(params,train_model,num_boost_round=1000,evals=watchlist)
 # preds = model.predict(test_model)
 # print(metrics.mean_squared_error(test_model.get_label(), preds))
 
 
-
 #预测
-dataset1 = xgb.DMatrix(dataset1_x,label=dataset1_y)
-dataset2 = xgb.DMatrix(dataset2_x)
 watchlist = [(dataset1,'train')]
 model = xgb.train(params,dataset1,num_boost_round=500,evals=watchlist)
-prediction['label'] = model.predict(dataset2)
-prediction['label'] = prediction['label'].astype('int')
+prediction.loc[:,'label'] = model.predict(dataset2)
+prediction.loc[:,'label'] = prediction['label'] * 750 + int(750 * 0.1)
+prediction.loc[:,'label'] = prediction['label'].astype('int')
 prediction = prediction.sort_values(["label"],ascending=False)
 prediction.to_csv("data/resultData/xgb_preds.csv",index=None,header=None,encoding='GBK')
-# print(prediction.info())
 #save feature score
 feature_score = model.get_fscore()
 feature_score = sorted(feature_score.items(), key=lambda x:x[1],reverse=True)

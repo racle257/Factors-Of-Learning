@@ -48,28 +48,20 @@ high_school_data = pd.concat([high_school_data,taikang_data],axis=0)
 ##########基本信息整理#########
 """
     Base Information
-    1.高中地区
-    2.高中类型
-    3.高三班主任任教科目
-    4.高三班主任任教职称
-    5.一练排名
-    6.二练排名
-    7.三练排名
-    8.高中变化趋势
-    9.复读年限
-    10.中考成绩
+    1.一练成绩
+    2.一练排名
+    3.二练成绩
+    4.二练排名
+    5.三练成绩
+    6.三练排名
+    7.中考成绩
+    8.中考排名
 """
 base_info = high_school_data.iloc[:,0:22].copy()
 base_info['school_name'] = high_school_data['school_name'].copy()
-base_info['type_high_school'] = high_school_data['type_high_school'].copy()
-base_info['area_high_school'] = high_school_data['area_high_school'].copy()
-base_info['date_zhongkao'] = base_info['date_zhongkao'].astype('int')
 base_info['id'] = base_info['name'].astype('str') + '-' + base_info['school_name'].astype('str') + '-' + base_info['ss_id'].astype('str')
-BI = base_info[['id','area_high_school','type_high_school','subject_advicer','rank_advicer','rank_exam1',
-                'rank_exam2','rank_exam3','type_grade_change']].copy()
-BI['reschool'] = 8 - base_info['date_zhongkao']
-BI['reschool'] = BI['reschool'].apply(lambda x:x-3 if x>3 else 0)
-BI['grade_zhongkao'] = base_info['grade_zhongkao']
+BI = base_info[['id','grade_exam1','rank_exam1','grade_exam2','rank_exam2','grade_exam3',
+                'rank_exam3','grade_zhongkao','rank_zhongkao']].copy()
 test_data_high_school = BI.copy()
 # print(test_data_college.info())
 # print(test_data_college[:5])
@@ -79,7 +71,7 @@ test_data_high_school = BI.copy()
 #
 ##########问卷整理部分###########
 questionnaire_info = high_school_data.iloc[:,22:-4]
-print(questionnaire_info[:5])
+# print(questionnaire_info[:5])
 """
     1. 自我效能感（Self Efficacy）
     - 问卷位置： 15-24
